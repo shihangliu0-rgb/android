@@ -76,19 +76,33 @@ private fun Clouds(modifier: Modifier = Modifier) {
         val h = with(density) { maxHeight.toPx() }
         val t = rememberInfiniteTransition(label = "clouds")
 
-        fun drift(duration: Int) = t.animateFloat(
+        val d1 by t.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(duration, easing = LinearEasing),
+                animation = tween(95_000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart,
             ),
-            label = "drift$duration",
+            label = "drift1",
         )
-
-        val d1 by drift(95_000)
-        val d2 by drift(140_000)
-        val d3 by drift(115_000)
+        val d2 by t.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(140_000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "drift2",
+        )
+        val d3 by t.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(115_000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "drift3",
+        )
 
         Cloud(
             modifier = Modifier.offset { IntOffset((((d1 * 1.45f) - 0.25f) * w).roundToInt(), (h * 0.10f).roundToInt()) },

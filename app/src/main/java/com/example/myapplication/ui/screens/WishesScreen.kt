@@ -69,7 +69,7 @@ fun WishesScreen(onBack: () -> Unit) {
     }
 
     Box(Modifier.fillMaxSize()) {
-        SkyBackground(Modifier.fillMaxSize())
+        SkyBackground(modifier = Modifier.fillMaxSize())
 
         Column(Modifier.fillMaxSize()) {
             BackHeader("🍾 愿望漂流瓶", onBack)

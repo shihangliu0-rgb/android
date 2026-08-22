@@ -64,7 +64,7 @@ fun AchievementsScreen(onBack: () -> Unit) {
     }
 
     Box(Modifier.fillMaxSize()) {
-        SkyBackground(Modifier.fillMaxSize())
+        SkyBackground(modifier = Modifier.fillMaxSize())
 
         Column(Modifier.fillMaxSize()) {
             BackHeader("🏆 暑假成就", onBack)

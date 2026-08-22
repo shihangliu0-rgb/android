@@ -85,7 +85,7 @@ fun BootScreen(
                 detectTapGestures { skipAll() }
             },
     ) {
-        SkyBackground(Modifier.fillMaxSize())
+        SkyBackground(modifier = Modifier.fillMaxSize())
 
         Column(
             Modifier
@@ -152,13 +152,13 @@ fun BootScreen(
                         Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.Start,
                     ) {
-                        BOOT_LINES.forEachIndexed { index, line ->
+                        for (index in BOOT_LINES.indices) {
                             AnimatedVisibility(
                                 visible = linesShown > index,
                                 enter = fadeIn() + slideInVertically { it / 2 },
                             ) {
                                 Text(
-                                    text = "▸ $line",
+                                    text = "▸ ${BOOT_LINES[index]}",
                                     color = Color.White.copy(alpha = 0.95f),
                                     fontSize = 16.sp,
                                     lineHeight = 26.sp,

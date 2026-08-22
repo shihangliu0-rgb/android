@@ -77,7 +77,7 @@ fun CardDrawScreen(onBack: () -> Unit) {
     }
 
     Box(Modifier.fillMaxSize()) {
-        SkyBackground(Modifier.fillMaxSize())
+        SkyBackground(modifier = Modifier.fillMaxSize())
 
         Column(Modifier.fillMaxSize()) {
             BackHeader("🎴 今日抽卡", onBack)

@@ -52,7 +52,7 @@ fun SimulatorScreen(onBack: () -> Unit) {
     }
 
     Box(Modifier.fillMaxSize()) {
-        SkyBackground(Modifier.fillMaxSize())
+        SkyBackground(modifier = Modifier.fillMaxSize())
 
         Column(Modifier.fillMaxSize()) {
             BackHeader("🏝️ 今日模拟器", onBack)

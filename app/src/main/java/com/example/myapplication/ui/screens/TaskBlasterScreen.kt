@@ -152,7 +152,7 @@ fun TaskBlasterScreen(onFinish: () -> Unit) {
             .fillMaxSize()
             .onSizeChanged { containerSize = it },
     ) {
-        SkyBackground(Modifier.fillMaxSize())
+        SkyBackground(modifier = Modifier.fillMaxSize())
 
         // 顶部标题 + 进度
         Column(
