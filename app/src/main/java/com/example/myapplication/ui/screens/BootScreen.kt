@@ -1,544 +1,229 @@
 package com.example.myapplication.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.ui.components.SkyBackground
-import com.example.myapplication.ui.components.Sun
-import com.example.myapplication.ui.theme.Coral
 import kotlinx.coroutines.delay
 
-
-private val BOOT_LINES = listOf(
-    "检测到学期已结束。",
-    "正在解除早八限制……",
-    "正在删除 DDL 压力……",
-    "正在启动暑假模式……",
-)
-
+// V3 极简暖白配色
+private val BootBackground = Color(0xFFFFFDF7)
+private val SunBodyLight = Color(0xFFFFD08A)
+private val SunBody = Color(0xFFFF7A45)
+private val SunGlow = Color(0xFFFFB74D)
+private val TextPrimary = Color(0xFF2B2B2B)
+private val TextMuted = Color(0xFF9B968B)
 
 @Composable
 fun BootScreen(
     alreadyStarted: Boolean,
     onEnter: () -> Unit,
 ) {
-    var loaded by remember {
-        mutableStateOf(false)
-    }
-
-    var linesShown by remember {
-        mutableIntStateOf(0)
-    }
-
-    var showBanner by remember {
-        mutableStateOf(false)
-    }
-
-    var showPrompt by remember {
-        mutableStateOf(false)
-    }
-
-
-    fun skipAll() {
-        loaded = true
-        linesShown = BOOT_LINES.size
-        showBanner = true
-        showPrompt = true
-    }
-
+    // 分阶段时间轴：太阳 → 光晕 → Summer → 2026 → 按钮
+    var phase by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
-        delay(300)
-
-        loaded = true
-
-        BOOT_LINES.forEach {
-            delay(620)
-
-            if (linesShown < BOOT_LINES.size) {
-                linesShown++
-            }
-        }
-
-        delay(900)
-
-        showBanner = true
-
-        delay(1200)
-
-        showPrompt = true
+        phase = 1
+        delay(200)
+        phase = 2
+        delay(350)
+        phase = 3
+        delay(200)
+        phase = 4
+        delay(550)
+        phase = 5
     }
 
+    val sunScale by animateFloatAsState(
+        targetValue = if (phase >= 1) 1f else 0.8f,
+        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
+        label = "sunScale",
+    )
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (phase >= 2) 1f else 0f,
+        animationSpec = tween(durationMillis = 600),
+        label = "glowAlpha",
+    )
+    val summerAlpha by animateFloatAsState(
+        targetValue = if (phase >= 3) 1f else 0f,
+        animationSpec = tween(durationMillis = 450),
+        label = "summerAlpha",
+    )
+    val summerSlide by animateDpAsState(
+        targetValue = if (phase >= 3) 0.dp else 14.dp,
+        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+        label = "summerSlide",
+    )
+    val yearAlpha by animateFloatAsState(
+        targetValue = if (phase >= 4) 1f else 0f,
+        animationSpec = tween(durationMillis = 450),
+        label = "yearAlpha",
+    )
+    val buttonAlpha by animateFloatAsState(
+        targetValue = if (phase >= 5) 1f else 0f,
+        animationSpec = tween(durationMillis = 450),
+        label = "buttonAlpha",
+    )
+
+    // 太阳轻微漂浮
+    val floatTransition = rememberInfiniteTransition(label = "bootSunFloat")
+    val floatPhase by floatTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "bootSunFloatPhase",
+    )
+    val sunBob = 8.dp * (floatPhase - 0.5f)
+
+    val pressInteraction = remember { MutableInteractionSource() }
+    val pressed by pressInteraction.collectIsPressedAsState()
+    val buttonScale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = tween(durationMillis = 120),
+        label = "buttonScale",
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTapGestures {
-                    skipAll()
-                }
-            }
+            .background(color = BootBackground)
+            .systemBarsPadding(),
+        contentAlignment = Alignment.Center,
     ) {
-
-        SkyBackground(
-            modifier = Modifier.fillMaxSize()
-        )
-
-
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .systemBarsPadding()
-                .padding(horizontal = 28.dp),
-
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Center,
         ) {
-
-            /*
-             * 太阳
-             */
-            AnimatedVisibility(
-                visible = loaded,
-                enter = fadeIn() +
-                        slideInVertically {
-                            it / 2
-                        }
+            // 太阳（光晕 + 圆体）
+            Box(
+                modifier = Modifier
+                    .offset(y = sunBob)
+                    .size(size = 160.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Sun(
-                    diameter = 120.dp
+                Box(
+                    modifier = Modifier
+                        .size(size = 150.dp)
+                        .graphicsLayer { alpha = glowAlpha }
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(SunGlow, SunGlow.copy(alpha = 0f)),
+                            ),
+                            shape = CircleShape,
+                        ),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(size = 104.dp)
+                        .graphicsLayer {
+                            scaleX = sunScale
+                            scaleY = sunScale
+                        }
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(SunBodyLight, SunBody),
+                            ),
+                            shape = CircleShape,
+                        ),
                 )
             }
 
+            Spacer(modifier = Modifier.height(32.dp))
 
-            Spacer(
-                modifier = Modifier.height(20.dp)
-            )
-
-
-            /*
-             * 标题
-             */
-            AnimatedVisibility(
-                visible = loaded,
-                enter = fadeIn()
-            ) {
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-
-                    Text(
-                        text = "SUMMER",
-                        color = Color.White,
-                        fontSize = 44.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 8.sp
-                    )
-
-
-                    Text(
-                        text = "2026",
-                        color = Color.White.copy(
-                            alpha = 0.92f
-                        ),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 12.sp
-                    )
-                }
-            }
-
-
-            Spacer(
-                modifier = Modifier.height(30.dp)
-            )
-
-
-            /*
-             * 控制台区域
-             */
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp),
-
-                contentAlignment = Alignment.Center
+                    .graphicsLayer { alpha = summerAlpha }
+                    .offset(y = summerSlide),
             ) {
-
-                /*
-                 * 这里额外建立 Column。
-                 *
-                 * AnimatedVisibility 的某些 Compose 重载
-                 * 需要 ColumnScope，因此明确放在
-                 * Column 中，避免 implicit receiver 报错。
-                 */
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-
-                    horizontalAlignment = Alignment.CenterHorizontally,
-
-                    verticalArrangement = Arrangement.Center
-                ) {
-
-                    when {
-
-                        /*
-                         * 最终 Banner
-                         */
-                        showBanner -> {
-
-                            AnimatedVisibility(
-                                visible = true,
-
-                                modifier = Modifier.fillMaxWidth(),
-
-                                enter = scaleIn() + fadeIn()
-                            ) {
-
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .border(
-                                            width = 2.dp,
-
-                                            color = Color.White.copy(
-                                                alpha = 0.9f
-                                            ),
-
-                                            shape = RoundedCornerShape(
-                                                18.dp
-                                            )
-                                        )
-                                        .background(
-                                            color = Color.White.copy(
-                                                alpha = 0.14f
-                                            ),
-
-                                            shape = RoundedCornerShape(
-                                                18.dp
-                                            )
-                                        )
-                                        .padding(
-                                            vertical = 16.dp
-                                        ),
-
-                                    horizontalAlignment =
-                                        Alignment.CenterHorizontally
-                                ) {
-
-                                    Text(
-                                        text = "SUMMER MODE",
-
-                                        color = Color.White,
-
-                                        fontSize = 18.sp,
-
-                                        fontWeight = FontWeight.Bold,
-
-                                        letterSpacing = 4.sp
-                                    )
-
-
-                                    Text(
-                                        text = "ENABLED",
-
-                                        color = Color.White,
-
-                                        fontSize = 32.sp,
-
-                                        fontWeight = FontWeight.Black,
-
-                                        letterSpacing = 6.sp
-                                    )
-
-
-                                    Text(
-                                        text = "☀️ 2026",
-
-                                        color = Color.White,
-
-                                        fontSize = 14.sp,
-
-                                        letterSpacing = 3.sp
-                                    )
-                                }
-                            }
-                        }
-
-
-                        /*
-                         * 启动文字
-                         */
-                        linesShown > 0 -> {
-
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-
-                                horizontalAlignment =
-                                    Alignment.Start
-                            ) {
-
-                                for (index in BOOT_LINES.indices) {
-
-                                    AnimatedVisibility(
-                                        visible =
-                                            linesShown > index,
-
-                                        enter =
-                                            fadeIn() +
-                                                    slideInVertically {
-                                                        it / 2
-                                                    }
-                                    ) {
-
-                                        Text(
-                                            text =
-                                                "▸ ${BOOT_LINES[index]}",
-
-                                            color =
-                                                Color.White.copy(
-                                                    alpha = 0.95f
-                                                ),
-
-                                            fontSize = 16.sp,
-
-                                            lineHeight = 26.sp,
-
-                                            modifier =
-                                                Modifier.padding(
-                                                    vertical = 2.dp
-                                                )
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-
-                        /*
-                         * 初始 Loading
-                         */
-                        else -> {
-
-                            LoadingDots()
-                        }
-                    }
-                }
+                Text(
+                    text = "Summer",
+                    color = TextPrimary,
+                    fontSize = 46.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 2.sp,
+                )
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Spacer(
-                modifier = Modifier.height(24.dp)
-            )
-
-
-            /*
-             * 底部提示
-             */
-            AnimatedVisibility(
-                visible = showPrompt,
-
-                enter = fadeIn()
+            Box(
+                modifier = Modifier.graphicsLayer { alpha = yearAlpha },
             ) {
+                Text(
+                    text = "2026",
+                    color = TextMuted,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 6.sp,
+                )
+            }
 
-                Column(
-                    horizontalAlignment =
-                        Alignment.CenterHorizontally
-                ) {
+            Spacer(modifier = Modifier.height(48.dp))
 
-                    if (alreadyStarted) {
-
-                        Text(
-                            text =
-                                "欢迎回来，暑假早已开启。",
-
-                            color = Color.White,
-
-                            fontSize = 15.sp
-                        )
-
-
-                        Spacer(
-                            modifier = Modifier.height(6.dp)
-                        )
-
-
-                        Text(
-                            text =
-                                "继续浪费这个夏天吧 ☀️",
-
-                            color =
-                                Color.White.copy(
-                                    alpha = 0.9f
-                                ),
-
-                            fontSize = 15.sp
-                        )
-
-                    } else {
-
-                        Text(
-                            text =
-                                "暑假已经到账。",
-
-                            color = Color.White,
-
-                            fontSize = 15.sp
-                        )
-
-
-                        Spacer(
-                            modifier = Modifier.height(4.dp)
-                        )
-
-
-                        Text(
-                            text =
-                                "但在正式开启之前……",
-
-                            color = Color.White,
-
-                            fontSize = 15.sp
-                        )
-
-
-                        Spacer(
-                            modifier = Modifier.height(4.dp)
-                        )
-
-
-                        Text(
-                            text =
-                                "你需要完成最后一个任务。",
-
-                            color = Color.White,
-
-                            fontSize = 15.sp,
-
-                            fontWeight = FontWeight.Bold
-                        )
+            // 底部圆形按钮
+            Box(
+                modifier = Modifier
+                    .size(size = 64.dp)
+                    .graphicsLayer {
+                        alpha = buttonAlpha
+                        scaleX = buttonScale
+                        scaleY = buttonScale
                     }
-
-
-                    Spacer(
-                        modifier = Modifier.height(18.dp)
-                    )
-
-
-                    Button(
+                    .clip(shape = CircleShape)
+                    .background(color = SunBody)
+                    .clickable(
+                        interactionSource = pressInteraction,
+                        indication = null,
+                        enabled = phase >= 5,
                         onClick = onEnter,
-
-                        shape = RoundedCornerShape(
-                            50
-                        ),
-
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = Coral,
-
-                                contentColor = Color.White
-                            ),
-
-                        modifier =
-                            Modifier.size(
-                                width = 200.dp,
-
-                                height = 54.dp
-                            )
-                    ) {
-
-                        Text(
-                            text =
-                                if (alreadyStarted) {
-                                    "进入暑假"
-                                } else {
-                                    "开启暑假"
-                                },
-
-                            fontSize = 18.sp,
-
-                            fontWeight = FontWeight.Bold,
-
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "→",
+                    color = Color.White,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         }
     }
-}
-
-
-/*
- * Loading 动画
- */
-@Composable
-private fun LoadingDots() {
-
-    var dotCount by remember {
-        mutableIntStateOf(0)
-    }
-
-
-    LaunchedEffect(Unit) {
-
-        while (true) {
-
-            delay(350)
-
-            dotCount =
-                (dotCount + 1) % 4
-        }
-    }
-
-
-    Text(
-        text =
-            "Loading freedom" +
-                    ".".repeat(dotCount),
-
-        color =
-            Color.White.copy(
-                alpha = 0.85f
-            ),
-
-        fontSize = 16.sp,
-
-        letterSpacing = 1.sp
-    )
 }
