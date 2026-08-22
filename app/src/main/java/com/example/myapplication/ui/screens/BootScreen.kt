@@ -132,6 +132,7 @@ fun BootScreen(
                 when {
                     showBanner -> AnimatedVisibility(
                         visible = true,
+                        modifier = Modifier.fillMaxWidth(),
                         enter = scaleIn() + fadeIn(),
                     ) {
                         Column(
