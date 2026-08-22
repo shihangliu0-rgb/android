@@ -2,9 +2,7 @@ package com.example.myapplication.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
@@ -21,17 +19,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,18 +38,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.data.SummerCard
+import com.example.myapplication.data.Store
 import com.example.myapplication.data.computeRemaining
-import com.example.myapplication.data.randomCard
 import com.example.myapplication.ui.components.SkyBackground
 import com.example.myapplication.ui.components.Sun
 import com.example.myapplication.ui.theme.CardCream
@@ -66,27 +61,57 @@ import com.example.myapplication.ui.theme.Lemon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import java.util.Calendar
+
+private val TIPS = listOf(
+    "请合理浪费时间。",
+    "今天也是适合什么都不干的一天。",
+    "你的床正在召唤你。",
+    "学习可以，但不是今天。",
+    "检测到用户仍然拥有自由时间。",
+)
 
 @Composable
-fun HomeScreen(onReplay: () -> Unit) {
+fun HomeScreen(
+    onOpenCard: () -> Unit,
+    onOpenAchievements: () -> Unit,
+    onOpenSimulator: () -> Unit,
+    onOpenWishes: () -> Unit,
+    onReplay: () -> Unit,
+) {
+    val context = LocalContext.current
+
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var sunClicks by remember { mutableIntStateOf(0) }
+    var titleClicks by remember { mutableIntStateOf(0) }
     var sunMessage by remember { mutableStateOf<String?>(null) }
+    var titleMessage by remember { mutableStateOf<String?>(null) }
+    var rapidMsg by remember { mutableStateOf<String?>(null) }
     var showCountdownDialog by remember { mutableStateOf(false) }
     var panicMode by remember { mutableStateOf(false) }
-    var showCardDraw by remember { mutableStateOf(false) }
-    var moduleMsg by remember { mutableStateOf<String?>(null) }
+    var showAbout by remember { mutableStateOf(false) }
     val sunScale = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
+    val tip = remember { TIPS.random() }
 
     val heat = when {
-        sunClicks < 10 -> 0f
-        sunClicks >= 20 -> 1f
-        else -> (sunClicks - 10) / 10f
+        sunClicks < 5 -> 0f
+        sunClicks >= 15 -> 1f
+        else -> (sunClicks - 5) / 10f
     }
     val temp = (30 + heat * 18).roundToInt()
 
+    val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
+    val isLateNight = hour in 0..4
+
+    val remaining = remember(now) { computeRemaining(now) }
+    val isLastDays = remaining.days in 1..5 && !Store.eggSeen(context, "last_days")
+
     LaunchedEffect(Unit) {
+        // 首次进入主页即算「正式进入暑假」
+        Store.unlock(context, "first_day")
+        // 彩蛋 4：凌晨打开 → 顺带解锁「时间旅行者」
+        if (isLateNight) Store.unlock(context, "night_owl")
         while (true) {
             delay(1000)
             now = System.currentTimeMillis()
@@ -94,10 +119,16 @@ fun HomeScreen(onReplay: () -> Unit) {
     }
 
     LaunchedEffect(sunMessage) {
-        if (sunMessage != null) {
-            delay(2400)
-            sunMessage = null
-        }
+        if (sunMessage != null) { delay(2400); sunMessage = null }
+    }
+    LaunchedEffect(titleMessage) {
+        if (titleMessage != null) { delay(2400); titleMessage = null }
+    }
+    LaunchedEffect(rapidMsg) {
+        if (rapidMsg != null) { delay(2200); rapidMsg = null }
+    }
+    LaunchedEffect(isLastDays) {
+        if (isLastDays) Store.markEgg(context, "last_days")
     }
 
     fun pokeSun() {
@@ -108,18 +139,46 @@ fun HomeScreen(onReplay: () -> Unit) {
             sunScale.animateTo(1f, spring(dampingRatio = 0.35f))
         }
         when (next) {
-            10 -> sunMessage = "太阳：别点了，我真的很热。"
-            20 -> sunMessage = "系统提示：你成功制造了第二个太阳。"
-            else -> {}
+            1 -> sunMessage = "太阳：今天很热。"
+            5 -> sunMessage = "太阳：真的很热。"
+            10 -> sunMessage = "太阳：别点了。"
+            15 -> {
+                Store.unlock(context, "second_sun")
+                sunMessage = "系统提示：你成功制造了第二个太阳。"
+            }
         }
     }
 
-    val remaining = remember(now) { computeRemaining(now) }
+    fun pokeTitle() {
+        titleClicks++
+        if (titleClicks == 5) titleMessage = "你真的很喜欢这个标题。"
+    }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            // 彩蛋 3：观察整页点击（不拦截任何交互）
+            .pointerInput(Unit) {
+                var last = 0L
+                var count = 0
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        if (event.type == PointerEventType.Press) {
+                            val t = System.currentTimeMillis()
+                            count = if (t - last < 2500L) count + 1 else 1
+                            last = t
+                            if (count >= 8) {
+                                count = 0
+                                rapidMsg = "冷静一点 😂"
+                            }
+                        }
+                    }
+                }
+            },
+    ) {
         SkyBackground(heat = heat, modifier = Modifier.fillMaxSize())
 
-        // 第二个太阳（彩蛋）
         if (heat >= 1f) {
             Sun(
                 modifier = Modifier
@@ -141,45 +200,58 @@ fun HomeScreen(onReplay: () -> Unit) {
         ) {
             Spacer(Modifier.height(6.dp))
 
-            // 太阳 + 温度
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    Modifier
-                        .graphicsLayer {
-                            scaleX = sunScale.value
-                            scaleY = sunScale.value
-                        }
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { pokeSun() },
-                ) {
-                    Sun(diameter = 96.dp, heat = heat)
-                }
-                AnimatedVisibility(visible = heat > 0f, enter = fadeIn() + slideInVertically { it / 2 }) {
-                    Text(
-                        "🔥 温度：${temp}℃",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
+            Box(
+                Modifier
+                    .graphicsLayer {
+                        scaleX = sunScale.value
+                        scaleY = sunScale.value
+                    }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { pokeSun() },
+            ) {
+                Sun(diameter = 96.dp, heat = heat)
+            }
+            AnimatedVisibility(visible = heat > 0f, enter = fadeIn() + slideInVertically { it / 2 }) {
+                Text(
+                    "🔥 温度：${temp}℃",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
 
-            Spacer(Modifier.height(8.dp))
-            Text("SUMMER", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp)
-            Text("2026 ☀️", color = Color.White.copy(alpha = 0.92f), fontSize = 16.sp, letterSpacing = 8.sp)
+            Spacer(Modifier.height(10.dp))
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { pokeTitle() },
+            ) {
+                Text("SUMMER", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp)
+                Text("2026 ☀️", color = Color.White.copy(alpha = 0.92f), fontSize = 16.sp, letterSpacing = 8.sp)
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            StatusBadge("SUMMER MODE · ENABLED")
+
+            Spacer(Modifier.height(12.dp))
+
+            TipLine(tip)
 
             Spacer(Modifier.height(16.dp))
 
-            // 太阳的碎碎念
             AnimatedVisibility(visible = sunMessage != null, enter = fadeIn() + slideInVertically { it / 3 }) {
                 Text(
                     sunMessage ?: "",
                     color = Color.White,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .background(Color(0x55000000), RoundedCornerShape(16.dp))
@@ -187,39 +259,78 @@ fun HomeScreen(onReplay: () -> Unit) {
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(10.dp))
 
             CountdownCard(remaining = remaining, onClick = { showCountdownDialog = true })
 
             Spacer(Modifier.height(14.dp))
 
-            DrawCardEntry(onClick = { showCardDraw = true })
+            DrawCardEntry(onClick = onOpenCard)
 
             Spacer(Modifier.height(14.dp))
 
-            ModulesRow(onTap = { moduleMsg = it })
-
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "☀️ 请合理浪费这个夏天",
-                color = Color.White.copy(alpha = 0.85f),
-                fontSize = 13.sp,
+            ModulesGrid(
+                onAchievements = onOpenAchievements,
+                onSimulator = onOpenSimulator,
+                onWishes = onOpenWishes,
             )
-            Spacer(Modifier.height(4.dp))
+
+            Spacer(Modifier.height(18.dp))
+
             Text(
-                "↺ 再玩一次：放飞考试",
-                color = Color.White.copy(alpha = 0.95f),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
+                "关于 · 设置",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 12.sp,
                 modifier = Modifier
-                    .clickable(onClick = onReplay)
+                    .clickable { showAbout = true }
                     .padding(8.dp),
             )
-            Spacer(Modifier.height(12.dp))
+
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "↺ 再玩一次：放飞考试",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .clickable { onReplay() }
+                    .padding(8.dp),
+            )
+            Spacer(Modifier.height(16.dp))
+        }
+
+        AnimatedVisibility(
+            visible = isLateNight,
+            enter = fadeIn() + slideInVertically { it / 2 },
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
+        ) {
+            TipBanner("🌙 这个时间……你确定这是暑假吗？")
+        }
+
+        AnimatedVisibility(
+            visible = isLastDays,
+            enter = fadeIn() + slideInVertically { it / 2 },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp),
+        ) {
+            TipBanner("📉 系统检测到自由时间正在减少。")
+        }
+
+        AnimatedVisibility(
+            visible = titleMessage != null,
+            enter = fadeIn() + slideInVertically { it / 3 },
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            TipBanner(titleMessage ?: "")
+        }
+
+        AnimatedVisibility(
+            visible = rapidMsg != null,
+            enter = fadeIn(),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            Text(rapidMsg ?: "", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
         }
     }
 
-    // ── 倒计时彩蛋弹窗 ──
     if (showCountdownDialog) {
         AlertDialog(
             onDismissRequest = { showCountdownDialog = false },
@@ -238,31 +349,60 @@ fun HomeScreen(onReplay: () -> Unit) {
         )
     }
 
-    // ── 数字疯狂减少彩蛋 ──
     if (panicMode) {
         PanicOverlay(onDone = { panicMode = false })
     }
 
-    // ── 抽卡 ──
-    if (showCardDraw) {
-        CardDrawOverlay(onClose = { showCardDraw = false })
-    }
-
-    // ── 敬请期待 ──
-    if (moduleMsg != null) {
-        AlertDialog(
-            onDismissRequest = { moduleMsg = null },
-            containerColor = CardCream,
-            title = { Text(moduleMsg ?: "", color = Ink, fontWeight = FontWeight.Bold) },
-            text = { Text("这个功能还躺在暑假的沙滩上 🏖️\nVersion 2 敬请期待！", color = Ink.copy(alpha = 0.8f)) },
-            confirmButton = {
-                TextButton(onClick = { moduleMsg = null }) { Text("好耶 ☀️", color = Coral) }
+    if (showAbout) {
+        AboutDialog(
+            onDismiss = { showAbout = false },
+            onResetCard = {
+                Store.resetTodayCard(context)
+                showAbout = false
             },
         )
     }
 }
 
-// ───────────────────────── 卡片组件 ─────────────────────────
+// ───────────────────────── 主页小组件 ─────────────────────────
+
+@Composable
+private fun StatusBadge(text: String) {
+    Text(
+        text,
+        color = Color.White,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Black,
+        letterSpacing = 2.sp,
+        modifier = Modifier
+            .background(Color(0x33FFFFFF), RoundedCornerShape(50))
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
+private fun TipLine(text: String) {
+    Text(
+        "「$text」",
+        color = Color.White.copy(alpha = 0.95f),
+        fontSize = 14.sp,
+        textAlign = TextAlign.Center,
+    )
+}
+
+@Composable
+private fun TipBanner(text: String) {
+    Text(
+        text,
+        color = Color.White,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .background(Color(0xCC2B3A55), RoundedCornerShape(50))
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+    )
+}
 
 @Composable
 private fun GlassCard(
@@ -343,7 +483,7 @@ private fun DrawCardEntry(onClick: () -> Unit) {
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("今日暑假计划", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("点击抽取今日任务", color = Ink.copy(alpha = 0.6f), fontSize = 13.sp)
+                Text("每天只抽一张，今天看运气", color = Ink.copy(alpha = 0.6f), fontSize = 13.sp)
             }
             Text("抽一张 →", color = Coral, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
@@ -351,11 +491,15 @@ private fun DrawCardEntry(onClick: () -> Unit) {
 }
 
 @Composable
-private fun ModulesRow(onTap: (String) -> Unit) {
+private fun ModulesGrid(
+    onAchievements: () -> Unit,
+    onSimulator: () -> Unit,
+    onWishes: () -> Unit,
+) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        ModuleChip("🏆", "成就", Modifier.weight(1f)) { onTap("🏆 暑假成就") }
-        ModuleChip("🏝️", "模拟器", Modifier.weight(1f)) { onTap("🏝️ 今日模拟器") }
-        ModuleChip("🍾", "漂流瓶", Modifier.weight(1f)) { onTap("🍾 愿望漂流瓶") }
+        ModuleChip("🏆", "成就", Modifier.weight(1f)) { onAchievements() }
+        ModuleChip("🏝️", "模拟器", Modifier.weight(1f)) { onSimulator() }
+        ModuleChip("🍾", "漂流瓶", Modifier.weight(1f)) { onWishes() }
     }
 }
 
@@ -374,6 +518,35 @@ private fun ModuleChip(emoji: String, title: String, modifier: Modifier = Modifi
         Spacer(Modifier.height(4.dp))
         Text(title, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
+}
+
+@Composable
+private fun AboutDialog(onDismiss: () -> Unit, onResetCard: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CardCream,
+        title = { Text("关于", color = Ink, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("☀️ SUMMER START · 暑假启动器", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text("一个用来庆祝「终于放假了」的小世界。", color = Ink.copy(alpha = 0.8f), fontSize = 13.sp)
+                Spacer(Modifier.height(12.dp))
+                Text("开发者选项", color = Ink.copy(alpha = 0.55f), fontSize = 12.sp)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "重置今日抽卡",
+                    color = Coral,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { onResetCard() }.padding(vertical = 6.dp),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("好的 ☀️", color = Coral) }
+        },
+    )
 }
 
 // ───────────────────────── 数字暴减彩蛋 ─────────────────────────
@@ -399,12 +572,12 @@ private fun PanicOverlay(onDone: () -> Unit) {
     ) {
         if (showJoke) {
             Text(
-                "开玩笑的。\n别紧张 😄",
+                "开玩笑的。\n别紧张，暑假还没结束 😄",
                 color = Color.White,
-                fontSize = 26.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                lineHeight = 36.sp,
+                lineHeight = 34.sp,
             )
         } else {
             Text(
@@ -413,163 +586,6 @@ private fun PanicOverlay(onDone: () -> Unit) {
                 fontSize = 120.sp,
                 fontWeight = FontWeight.Black,
             )
-        }
-    }
-}
-
-// ───────────────────────── 抽卡翻牌 ─────────────────────────
-
-@Composable
-private fun CardDrawOverlay(onClose: () -> Unit) {
-    var card by remember { mutableStateOf(randomCard()) }
-    val rotation = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-
-    fun draw() {
-        card = randomCard()
-        scope.launch {
-            rotation.snapTo(0f)
-            rotation.animateTo(180f, tween(700, easing = FastOutSlowInEasing))
-        }
-    }
-
-    LaunchedEffect(Unit) { draw() }
-
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0x66000000))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) { onClose() },
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            Modifier
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { /* 吞掉点击，避免误关 */ },
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                Modifier
-                    .size(width = 264.dp, height = 380.dp)
-                    .graphicsLayer {
-                        rotationY = rotation.value
-                        cameraDistance = 12f * density
-                    },
-            ) {
-                if (rotation.value <= 90f) {
-                    CardBack()
-                } else {
-                    Box(Modifier.graphicsLayer { rotationY = 180f }) {
-                        CardFront(card)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(22.dp))
-
-            Row {
-                OutlinedButton(
-                    onClick = { draw() },
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Color.White),
-                ) {
-                    Text("再抽一次", fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.width(16.dp))
-                Button(
-                    onClick = onClose,
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(containerColor = Coral, contentColor = Color.White),
-                ) {
-                    Text("收下", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CardBack() {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Coral, Color(0xFFFFA07A), Color(0xFFFFD29D))), RoundedCornerShape(24.dp)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("🎴", fontSize = 72.sp)
-            Spacer(Modifier.height(12.dp))
-            Text("今日暑假计划", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.height(6.dp))
-            Text("SUMMER START", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, letterSpacing = 3.sp)
-        }
-    }
-}
-
-@Composable
-private fun CardFront(card: SummerCard) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(24.dp))
-            .background(CardCream),
-    ) {
-        // 稀有度头
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .background(Brush.horizontalGradient(listOf(card.rarity.color, card.rarity.color.copy(alpha = 0.75f)))),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(card.rarity.label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-                Spacer(Modifier.width(8.dp))
-                Text("·", color = Color.White.copy(alpha = 0.8f), fontSize = 18.sp)
-                Spacer(Modifier.width(8.dp))
-                Text("今日任务", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(card.emoji, fontSize = 56.sp)
-            Spacer(Modifier.height(12.dp))
-            Text(card.title, color = Ink, fontSize = 21.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(8.dp))
-            Text(card.desc, color = Ink.copy(alpha = 0.7f), fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 20.sp)
-            Spacer(Modifier.height(18.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(Color(0x14000000)),
-            )
-            Spacer(Modifier.height(14.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("奖励", color = Ink.copy(alpha = 0.55f), fontSize = 13.sp)
-                Text(card.reward, color = Coral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("经验", color = Ink.copy(alpha = 0.55f), fontSize = 13.sp)
-                Text("无", color = Ink.copy(alpha = 0.6f), fontSize = 13.sp)
-            }
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(card.difficulty, color = Ink.copy(alpha = 0.55f), fontSize = 13.sp)
-                Text(if (card.rarity.weight <= 8) "✨ 稀有卡" else "💰 金币：无", color = Ink.copy(alpha = 0.6f), fontSize = 13.sp)
-            }
         }
     }
 }

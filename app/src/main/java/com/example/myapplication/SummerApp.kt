@@ -9,17 +9,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import com.example.myapplication.data.Prefs
+import com.example.myapplication.data.Store
+import com.example.myapplication.ui.screens.AchievementsScreen
 import com.example.myapplication.ui.screens.BootScreen
+import com.example.myapplication.ui.screens.CardDrawScreen
 import com.example.myapplication.ui.screens.HomeScreen
+import com.example.myapplication.ui.screens.SimulatorScreen
 import com.example.myapplication.ui.screens.TaskBlasterScreen
+import com.example.myapplication.ui.screens.WishesScreen
 
-enum class Screen { BOOT, TASK, HOME }
+enum class Screen { BOOT, TASK, HOME, CARD, ACHIEVEMENTS, SIMULATOR, WISHES }
 
 @Composable
 fun SummerApp() {
     val context = LocalContext.current
-    val started = remember { Prefs.summerStarted(context) }
+    val started = remember { Store.summerStarted(context) }
     var screen by rememberSaveable { mutableStateOf(Screen.BOOT) }
 
     Crossfade(targetState = screen, animationSpec = tween(500)) { s ->
@@ -31,14 +35,26 @@ fun SummerApp() {
 
             Screen.TASK -> TaskBlasterScreen(
                 onFinish = {
-                    Prefs.setSummerStarted(context, true)
+                    Store.setSummerStarted(context, true)
                     screen = Screen.HOME
                 },
             )
 
             Screen.HOME -> HomeScreen(
+                onOpenCard = { screen = Screen.CARD },
+                onOpenAchievements = { screen = Screen.ACHIEVEMENTS },
+                onOpenSimulator = { screen = Screen.SIMULATOR },
+                onOpenWishes = { screen = Screen.WISHES },
                 onReplay = { screen = Screen.TASK },
             )
+
+            Screen.CARD -> CardDrawScreen(onBack = { screen = Screen.HOME })
+
+            Screen.ACHIEVEMENTS -> AchievementsScreen(onBack = { screen = Screen.HOME })
+
+            Screen.SIMULATOR -> SimulatorScreen(onBack = { screen = Screen.HOME })
+
+            Screen.WISHES -> WishesScreen(onBack = { screen = Screen.HOME })
         }
     }
 }

@@ -47,12 +47,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myapplication.data.Store
 import com.example.myapplication.data.TASKS
 import com.example.myapplication.data.TASK_ANCHORS
 import com.example.myapplication.data.TaskItem
@@ -86,6 +88,7 @@ private data class Pop(val id: Long, val x: Float, val y: Float)
 
 @Composable
 fun TaskBlasterScreen(onFinish: () -> Unit) {
+    val context = LocalContext.current
     val floating = remember {
         TASK_ANCHORS.mapIndexed { i, (x, y) ->
             FloatingTask(
@@ -103,6 +106,10 @@ fun TaskBlasterScreen(onFinish: () -> Unit) {
     val particles = remember { ParticleSystem() }
     var idSeq by remember { mutableStateOf(0L) }
     val finished = aliveCount <= 0
+
+    LaunchedEffect(finished) {
+        if (finished) Store.unlock(context, "task_cleared")
+    }
 
     // 粒子帧循环
     LaunchedEffect(Unit) {
