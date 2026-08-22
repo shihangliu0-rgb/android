@@ -41,11 +41,7 @@ fun SummerApp() {
             )
 
             Screen.HOME -> HomeScreen(
-                onOpenCard = { screen = Screen.CARD },
-                onOpenAchievements = { screen = Screen.ACHIEVEMENTS },
-                onOpenSimulator = { screen = Screen.SIMULATOR },
-                onOpenWishes = { screen = Screen.WISHES },
-                onReplay = { screen = Screen.TASK },
+                onEnterToday = { screen = Screen.SIMULATOR },
             )
 
             Screen.CARD -> CardDrawScreen(onBack = { screen = Screen.HOME })
